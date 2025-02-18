@@ -1,53 +1,121 @@
 import streamlit as st
-from openai import OpenAI
+import requests
+import google.generativeai as genai
+import os
+import PyPDF2
+def read_file_from_drive(file_id):
+    # Construct direct download URL
+    url = f"https://drive.google.com/uc?export=download&id={file_id}"   
+    
+    # Get file content
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.text
+    else:
+        st.error("Error downloading file from Google Drive")
+        return None
 
-# Show title and description.
-st.title("📄 Document question answering")
-st.write(
-    "Upload a document below and ask a question about it – GPT will answer! "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
+# Your Google Drive file ID
+file_id = "1Gt7Lp-ihWs80h_qqM2h_dkRIsXomKrcG"
+
+# Read and display file content
+content = read_file_from_drive(file_id)
+if content:
+    st.write(content)
+    
+if "conversation" not in st.session_state:
+    st.session_state.conversation = []
+
+# Sidebar for API key input
+#with st.sidebar:
+    #gemini_api_key = st.text_input("Enter Google Gemini API Key", key="file_qa_api_key", type="password")
+st.markdown("[View the source code](https://github.com/spikethescope/llm-examples/blob/main/pages/Fileqanda_gemini.py)")
+    #st.markdown("[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/streamlit/llm-examples?quickstart=1)")
+model = genai.GenerativeModel("gemini-2.0-flash-thinking-exp-01-21")
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
+#model = genai.GenerativeModel("gemini-2.0-flash-exp")
+st.title("📝 File Q&A with Google Gemini")
+uploaded_file = st.file_uploader("Upload an article", type=("txt", "md", "pdf"))
+
+if uploaded_file is not None:     
+        # Read and extract text from the PDF
+        reader = PyPDF2.PdfReader(uploaded_file)
+        article = []
+        for page in reader.pages:
+            article.append(page.extract_text())
+        st.session_state.article = "\n".join(article)
+#else:
+        # Handle other file types (e.g., txt, md)
+        #st.session_state.article = uploaded_file.read().decode()
+        
+question = st.text_input(
+    "Ask something about the article",
+    placeholder="Can you give me a short summary?",
+    disabled=not uploaded_file,
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+if uploaded_file and question and not gemini_api_key:
+    st.info("Please add your Google Gemini API key to continue.")
+def is_mathematical(text):
+    # Check if text contains mathematical symbols or equations
+    math_symbols = ['=', '+', '-', '×', '*', '/', '÷', '±', '∑', '∫', '√', '^', '≠', '≤', '≥', '≈', '∞', '∆', '∂']
+    return any(symbol in text for symbol in math_symbols) or '$' in text or any(char.isdigit() for char in text)
+    
+if uploaded_file and question and gemini_api_key:
+    #article = uploaded_file.read().decode()
+    
+    # Set up the Google Gemini client
+    genai.configure(api_key=gemini_api_key)
+    
+    # Create a prompt for the model
+    prompt = f"Here's an article:\n\n{article}\n\n answer this question: {question}"
+    # Add user's message to conversation history
+    st.session_state.conversation.append({"role": "user", "content": prompt})
+    
+    # Call the Google Gemini model
+    response = model.generate_content(prompt)
+    
+    # Add model's full response to conversation history
+    st.session_state.conversation.append({"role": "assistant", "content": response.text})
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+    # Call the Google Gemini model
+    response = model.generate_content(prompt)
 
-    # Let the user upload a file via `st.file_uploader`.
-    uploaded_file = st.file_uploader(
-        "Upload a document (.txt or .md)", type=("txt", "md")
-    )
+    # Display the response from the model
+    st.write("### Answer")
+    
+    steps = response.text.split('\n')
 
-    # Ask the user for a question via `st.text_area`.
-    question = st.text_area(
-        "Now ask a question about the document!",
-        placeholder="Can you give me a short summary?",
-        disabled=not uploaded_file,
-    )
-
-    if uploaded_file and question:
-
-        # Process the uploaded file and question.
-        document = uploaded_file.read().decode()
-        messages = [
-            {
-                "role": "user",
-                "content": f"Here's a document: {document} \n\n---\n\n {question}",
-            }
-        ]
-
-        # Generate an answer using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            stream=True,
-        )
-
-        # Stream the response to the app using `st.write_stream`.
-        st.write_stream(stream)
+    def format_important_step(step):
+        # Remove any markdown bold markers
+        step = step.replace('**', '')
+        step = step.strip('*')
+        # Heuristically check whether the line contains math symbols
+        has_math = any(sym in step for sym in ['=', '√', '+', '-', '*', '/', '^'])
+        # If it appears to contain math and isn’t already wrapped in LaTeX delimiters, then wrap it.
+        if has_math and "" not in step: step = "" + step + "$$"
+        return step
+    
+    for step in steps:
+        if step.strip(): # Only process non-empty lines
+            # If the step is an important/final step (detected by key phrases)
+            if any(keyword in step.lower() for keyword in ['therefore', 'result', 'final', 'answer', '=', 'solution']):
+                formatted_step = format_important_step(step)
+                 # Display the important step in a box (grey background) using st.markdown with unsafe_allow_html
+                st.markdown(f"""
+                <div style="border:1px solid #d0d0d0; 
+                            padding:15px; 
+                            border-radius:5px; 
+                            margin:10px 0; 
+                            background-color:#f5f5f5;
+                            color: #000000;">
+                {formatted_step}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                # For regular steps: if the step contains a '$', assume it is a LaTeX expression and use st.latex
+                if '$' in step:
+                    st.latex(step.replace('$', ''))
+                else:
+                    st.write(step)
+        
