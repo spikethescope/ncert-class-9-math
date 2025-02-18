@@ -1,6 +1,6 @@
 streamlit
 openai
 google.generativeai
-PyPDF2
+PyPdf2
 os
 requests
