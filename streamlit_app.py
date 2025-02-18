@@ -19,10 +19,7 @@ def read_file_from_drive(file_id):
 file_id = "1Gt7Lp-ihWs80h_qqM2h_dkRIsXomKrcG"
 
 # Read and display file content
-content = read_file_from_drive(file_id)
-if content:
-    st.write(content)
-    
+content = read_file_from_drive(file_id)    
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
@@ -34,16 +31,11 @@ st.markdown("[View the source code](https://github.com/spikethescope/llm-example
 model = genai.GenerativeModel("gemini-2.0-flash-thinking-exp-01-21")
 gemini_api_key = os.environ.get("GEMINI_API_KEY")
 #model = genai.GenerativeModel("gemini-2.0-flash-exp")
-st.title("📝 File Q&A with Google Gemini")
-uploaded_file = st.file_uploader("Upload an article", type=("txt", "md", "pdf"))
+st.title("📝 Q&A with Google Gemini - Class 9 NCERT Textbook")
+#uploaded_file = st.file_uploader("Upload an article", type=("txt", "md", "pdf"))
 
-if uploaded_file is not None:     
-        # Read and extract text from the PDF
-        reader = PyPDF2.PdfReader(uploaded_file)
-        article = []
-        for page in reader.pages:
-            article.append(page.extract_text())
-        st.session_state.article = "\n".join(article)
+if content is not None:     
+        st.session_state.article = content
 #else:
         # Handle other file types (e.g., txt, md)
         #st.session_state.article = uploaded_file.read().decode()
@@ -51,10 +43,10 @@ if uploaded_file is not None:
 question = st.text_input(
     "Ask something about the article",
     placeholder="Can you give me a short summary?",
-    disabled=not uploaded_file,
+    disabled=not content,
 )
 
-if uploaded_file and question and not gemini_api_key:
+if content and question and not gemini_api_key:
     st.info("Please add your Google Gemini API key to continue.")
 def is_mathematical(text):
     # Check if text contains mathematical symbols or equations
