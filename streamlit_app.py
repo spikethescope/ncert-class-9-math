@@ -53,14 +53,14 @@ def is_mathematical(text):
     math_symbols = ['=', '+', '-', '×', '*', '/', '÷', '±', '∑', '∫', '√', '^', '≠', '≤', '≥', '≈', '∞', '∆', '∂']
     return any(symbol in text for symbol in math_symbols) or '$' in text or any(char.isdigit() for char in text)
     
-if uploaded_file and question and gemini_api_key:
+if content and question and gemini_api_key:
     #article = uploaded_file.read().decode()
     
     # Set up the Google Gemini client
     genai.configure(api_key=gemini_api_key)
     
     # Create a prompt for the model
-    prompt = f"Here's an article:\n\n{article}\n\n answer this question: {question}"
+    prompt = f"Here's an article:\n\n{content}\n\n answer this question: {question}"
     # Add user's message to conversation history
     st.session_state.conversation.append({"role": "user", "content": prompt})
     
