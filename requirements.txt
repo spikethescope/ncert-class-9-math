@@ -3,4 +3,3 @@ openai
 google.generativeai
 os
 requests
-PyPDF2
